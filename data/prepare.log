@@ -1,0 +1,6 @@
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:02<00:08,  2.69s/it]Fetching 4 files:  50%|█████     | 2/4 [00:03<00:03,  1.73s/it]Fetching 4 files:  75%|███████▌  | 3/4 [00:07<00:02,  2.55s/it]Fetching 4 files: 100%|██████████| 4/4 [00:11<00:00,  3.11s/it]Fetching 4 files: 100%|██████████| 4/4 [00:11<00:00,  2.81s/it]
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 4 files:  25%|██▌       | 1/4 [00:00<00:00,  4.66it/s]Fetching 4 files:  75%|███████▌  | 3/4 [00:00<00:00, 10.11it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 11.33it/s]
+chat sessions: 1500 (turns: 7570, avg turns 5.05)
+mmlu eval questions: 1140 across 57 subjects
+mmlu classifier train rows: 1816

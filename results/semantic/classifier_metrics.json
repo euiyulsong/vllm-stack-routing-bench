@@ -1,0 +1,47 @@
+{
+  "train_rows": 1816,
+  "test_rows": 13508,
+  "accuracy": 0.7771690849866746,
+  "macro_f1": 0.7683104900415538,
+  "majority_baseline_accuracy": 0.30877998223275094,
+  "per_request_latency_ms_cpu": 0.25561337600811385,
+  "report": {
+    "STEM": {
+      "precision": 0.7770992366412214,
+      "recall": 0.8071677767205836,
+      "f1-score": 0.7918481642812695,
+      "support": 3153.0
+    },
+    "Humanities": {
+      "precision": 0.9036834245893479,
+      "recall": 0.8705346439702709,
+      "f1-score": 0.8867993650018318,
+      "support": 4171.0
+    },
+    "Social": {
+      "precision": 0.724037528307991,
+      "recall": 0.7273318167045824,
+      "f1-score": 0.72568093385214,
+      "support": 3077.0
+    },
+    "Other": {
+      "precision": 0.6670934699103713,
+      "recall": 0.6707434824589636,
+      "f1-score": 0.6689134970309741,
+      "support": 3107.0
+    },
+    "accuracy": 0.7771690849866746,
+    "macro avg": {
+      "precision": 0.7679784148622328,
+      "recall": 0.7689444299636002,
+      "f1-score": 0.7683104900415538,
+      "support": 13508.0
+    },
+    "weighted avg": {
+      "precision": 0.7787962942483827,
+      "recall": 0.7771690849866746,
+      "f1-score": 0.7778184692137811,
+      "support": 13508.0
+    }
+  }
+}

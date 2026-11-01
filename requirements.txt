@@ -1,0 +1,9 @@
+numpy
+pandas
+scikit-learn
+matplotlib
+datasets
+tokenizers
+pyarrow
+pyyaml
+tabulate
