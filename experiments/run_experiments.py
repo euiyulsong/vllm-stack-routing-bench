@@ -57,6 +57,8 @@ class Job:
     cpu: bool = False
     remote: bool = False
     beta: float = 1.0
+    lag: float = 0.0
+    sem_bonus: float = 0.0
 
 
 def run_job(job: Job) -> dict:
@@ -65,7 +67,8 @@ def run_job(job: Job) -> dict:
             remote_kv_tokens=REMOTE_TOKENS if job.remote else 0)
     reqs = build_workload(job.workload, job.rate, DURATION, job.seed)
     cl = Cluster(hw, n_mixed=job.n_mixed, n_prefill=job.n_prefill, n_decode=job.n_decode,
-                 policy=job.policy, use_remote=job.remote, cpu_offload=job.cpu)
+                 policy=job.policy, use_remote=job.remote, cpu_offload=job.cpu,
+                 index_lag=job.lag, sem_bonus=job.sem_bonus)
     t0 = time.time()
     done = cl.run(reqs, DRAIN_END)
     n_entry = len(cl.entry)
@@ -76,7 +79,8 @@ def run_job(job: Job) -> dict:
         "topology": (f"{job.n_mixed}mixed" if job.n_mixed else
                      f"{job.n_prefill}P+{job.n_decode}D"),
         "cpu_offload": int(job.cpu), "shared_store": int(job.remote),
-        "beta": job.beta, "sim_wall_s": round(time.time() - t0, 2),
+        "beta": job.beta, "index_lag_s": job.lag, "sem_bonus": job.sem_bonus,
+        "sim_wall_s": round(time.time() - t0, 2),
     }
     row.update({k: (round(v, 6) if isinstance(v, float) else v) for k, v in m.items()})
     return row
@@ -119,6 +123,24 @@ def jobs_for(suite: str, seeds: int) -> list[Job]:
                 for s in S:
                     out.append(Job("semantic", f"colocated-4x-{pol}", "mmlu", rate, s, pol,
                                    n_mixed=4))
+    elif suite == "lag":
+        # Q2: KV-aware routing with a stale cache index (controller update delay)
+        for wl, rates in [("chat", [8, 12, 16]), ("mixed", [16, 24]), ("mmlu", [120, 160])]:
+            for rate in rates:
+                for lag in [0.0, 0.1, 0.5, 2.0]:
+                    for s in S:
+                        out.append(Job("lag", f"kvaware-lag{lag}s", wl, rate, s, "kvaware",
+                                       n_mixed=4, lag=lag))
+    elif suite == "softsem":
+        # Q3: load-aware routing with the predicted semantic group as a soft hint
+        for rate in [80, 120, 160]:
+            for s in S:
+                out.append(Job("softsem", "loadaware", "mmlu", rate, s, "loadaware", n_mixed=4))
+                out.append(Job("softsem", "kvaware", "mmlu", rate, s, "kvaware", n_mixed=4))
+                out.append(Job("softsem", "semantic-hard", "mmlu", rate, s, "semantic", n_mixed=4))
+                for g in [0.25, 0.5, 1.0]:
+                    out.append(Job("softsem", f"loadaware_sem-bonus{g}", "mmlu", rate, s,
+                                   "loadaware_sem", n_mixed=4, sem_bonus=g))
     else:
         raise ValueError(suite)
     return out

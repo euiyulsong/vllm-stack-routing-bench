@@ -16,12 +16,13 @@ Status: queued, not started. Blocked on GPU availability.
      `results/tables/`, and recalibrate `sim/cluster.py::HW`.
   6. Save raw results under `results/real/` and update README.
 
-## Q2. Controller lag for the KV-aware router (queued)
+## Q2. Controller lag for the KV-aware router (DONE in simulator, see README E4)
 
-- Add a configurable update delay to the KV-aware cache index, to match the
-  LMCache controller. Re-run E1 and E2 with lags of 0, 100 ms and 500 ms.
+- Done: lagged index with lag 0, 0.1, 0.5, 2 s (`results/raw/lag.csv`). Small effect
+  except on MMLU at 160 req/s, where lag 2 s is unstable. Real LMCache lag is still
+  unmeasured.
 
-## Q3. Load-aware + predicted semantic group (queued)
+## Q3. Load-aware + predicted semantic group (DONE in simulator, see README E4)
 
-- Use the predicted group as a soft hint (score bonus) rather than a hard
-  replica pool. Compare with E3.
+- Done: soft bonus 0.25/0.5/1.0 on load-aware (`results/raw/softsem.csv`). Bonus
+  0.25–0.5 gives about 5–9% lower p99; 1.0 is unstable.

@@ -99,6 +99,8 @@ class Replica:
         self.scheduled = False
         self.arrivals: deque = deque()           # for qps routing
         self.busy_s = 0.0
+        self.snap = frozenset()                  # lagged view of cached keys (controller index)
+        self.snap_t = float("-inf")
 
     # ---------- cache primitives ----------
     def _make_room(self, need: int) -> bool:
@@ -147,6 +149,21 @@ class Replica:
         n = 0
         for k in r.keys[:r.n_prompt_blocks]:
             if self._in_gpu(k) or k in self.cpu or (remote is not None and k in remote):
+                n += 1
+            else:
+                break
+        return n
+
+    def match_lagged(self, r: Req, remote, now: float, lag: float) -> int:
+        """Matched blocks as seen by a controller index that refreshes every `lag` s."""
+        if lag <= 0:
+            return self.peek_match(r, remote)
+        if now - self.snap_t >= lag:
+            self.snap = frozenset(self.idle) | frozenset(self.pinned) | frozenset(self.cpu)
+            self.snap_t = now
+        n = 0
+        for k in r.keys[:r.n_prompt_blocks]:
+            if k in self.snap or (remote is not None and k in remote):
                 n += 1
             else:
                 break
@@ -316,10 +333,13 @@ class Replica:
 class Cluster:
     def __init__(self, hw: HW, n_mixed: int = 0, n_prefill: int = 0, n_decode: int = 0,
                  policy: str = "kvaware", use_remote: bool = False,
-                 cpu_offload: bool = False):
+                 cpu_offload: bool = False, index_lag: float = 0.0,
+                 sem_bonus: float = 0.0):
         hw = replace(hw, cpu_kv_tokens=hw.cpu_kv_tokens if cpu_offload else 0)
         self.hw = hw
         self.policy = policy
+        self.index_lag = index_lag      # Q2: KV index staleness (s); 0 = live
+        self.sem_bonus = sem_bonus      # Q3: soft bonus for the predicted semantic pool
         self.remote = SharedStore(hw.remote_kv_tokens // BLOCK) if use_remote else None
         self.replicas: list[Replica] = []
         for i in range(n_mixed):
@@ -428,24 +448,28 @@ class Cluster:
             if grp is None:
                 return self._fallback(r, t)
             return entry[GROUPS.index(grp) % len(entry)]
-        matched = {rep.idx: rep.peek_match(r, self.remote) for rep in entry}
+        matched = {rep.idx: rep.match_lagged(r, self.remote, t, self.index_lag) for rep in entry}
         if pol == "kvaware":
             best = max(matched.values())
             if best == 0:
                 return self._fallback(r, t)
             cands = [entry[i] for i, m in matched.items() if m == best]
             return min(cands, key=lambda rep: (rep.inflight, self._qps_count(rep, t)))
-        if pol == "loadaware":
+        if pol in ("loadaware", "loadaware_sem"):
             if max(matched.values()) == 0:
                 return self._fallback(r, t)
             loads = {rep.idx: rep.inflight for rep in entry}
             mean = sum(loads.values()) / len(loads)
             beta = self.hw.loadaware_beta
+            target = None
+            if pol == "loadaware_sem" and r.pred_category in GROUPS:
+                target = GROUPS.index(r.pred_category) % len(entry)
             best_rep, best_key = None, None
             for rep in entry:
                 frac = min(matched[rep.idx] * BLOCK, r.prompt_len) / max(r.prompt_len, 1)
                 rel = (loads[rep.idx] - mean) / max(1.0, mean)
-                key = (frac - beta * rel, -self._qps_count(rep, t))  # ties -> lower QPS
+                bonus = self.sem_bonus if rep.idx == target else 0.0
+                key = (frac - beta * rel + bonus, -self._qps_count(rep, t))  # ties -> lower QPS
                 if best_key is None or key > best_key:
                     best_rep, best_key = rep, key
             return best_rep

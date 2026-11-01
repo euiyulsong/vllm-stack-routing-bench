@@ -158,6 +158,42 @@ Findings:
   Semantic Router's main job is model selection and safety filtering. All replicas
   here serve the same model, so E3 only measures its cache-affinity effect.
 
+
+### E4. Follow-up: stale KV index (Q2) and soft semantic hint (Q3)
+
+Both run with 5 seeds on the same simulator. Default behaviour (index lag 0, no bonus)
+reproduces the E1 numbers exactly (checked: chat @ 12 req/s, KV-aware, seed 0).
+
+**Q2: KV index staleness** (`results/raw/lag.csv`). The controller index refreshes every
+`lag` seconds. Requests are still served by the live caches.
+
+| workload @ req/s | lag 0 | lag 0.1 s | lag 0.5 s | lag 2 s |
+|---|---|---|---|---|
+| chat @ 12, TTFT p99 (s) | 2.33 | 2.33 | 2.32 | 2.27 |
+| mixed @ 24, TTFT p99 (s) | 26.9 | 25.6 | 27.5 | 26.1 |
+| mmlu @ 120, TTFT p99 (s) | 0.25 | 0.23 | 0.20 | 0.18 |
+| mmlu @ 160, TTFT p99 (s) | 0.68 | 0.40 | 0.29 | 77.2 |
+
+Staleness barely changes the hit ratio, which stays at about 0.85 on MMLU. Moderate lag
+(0.1–0.5 s) helps MMLU, because stale index entries spread requests across replicas.
+Lag of 2 s on MMLU at 160 req/s is unstable (p99 77 s), so that result should be treated
+with caution. Most other cells are within the seed noise.
+
+**Q3: soft semantic hint on load-aware routing** (`results/raw/softsem.csv`, MMLU only).
+The predicted subject group gets a bonus added to the load-aware score for its
+preferred replica.
+
+| req/s | load-aware | + bonus 0.25 | + bonus 0.5 | + bonus 1.0 | hard pinning |
+|---|---|---|---|---|---|
+| 80, TTFT p99 (s) | 0.175 | 0.165 | **0.160** | 0.214 | 0.53 |
+| 120, TTFT p99 (s) | 0.290 | 0.273 | **0.270** | 0.330 | 169 |
+| 160, TTFT p99 (s) | 0.514 | 0.505 | **0.495** | 20.6 | 423 |
+
+A soft bonus of 0.25–0.5 gives a small improvement (about 5–9%) over plain load-aware
+routing. A bonus of 1.0 lets the predicted group overload one replica, and p99 becomes
+unstable at 160 req/s. Hard pinning is far worse. The semantic signal is useful as a
+tie-breaker, not as a partition.
+
 ## Limitations
 
 * No real vLLM run (GPU occupied; see above). All latencies come from the cost model
@@ -203,5 +239,5 @@ results/figures/*.png        figures
 1. Run the same configurations with real vLLM + production-stack on a free GPU
    (`helm` chart or the Docker image from the docs), using the same workload files, and
    compare with these simulated numbers to calibrate the cost model.
-2. Add controller lag to the KV-aware router, to match LMCache.
-3. Test load-aware + predicted semantic group (a soft hint rather than a hard partition).
+2. (Done, E4) Controller lag on the KV-aware index: small effect except on MMLU.
+3. (Done, E4) Soft semantic hint on load-aware: small gain at bonus 0.25–0.5.
